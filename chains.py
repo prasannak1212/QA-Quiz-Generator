@@ -1,25 +1,24 @@
-import os
-from dotenv import load_dotenv
+import requests
 
-from langchain_core.prompts import ChatPromptTemplate
-from langchain_huggingface import ChatHuggingFace
+OLLAMA_URL = "http://localhost:11434/api/generate"
+MODEL_NAME = "phi3:mini"
 
-# Load environment variables
-load_dotenv()
 
-# Create HuggingFace Chat model (router compatible)
-llm = ChatHuggingFace(
-    model="mistralai/Mistral-7B-Instruct-v0.2",
-    huggingfacehub_api_token=os.getenv("HUGGINGFACEHUB_API_TOKEN"),
-    temperature=0.3,
-    max_new_tokens=512,
-)
+def generate_response(prompt: str):
+    response = requests.post(
+        OLLAMA_URL,
+        json={
+            "model": MODEL_NAME,
+            "prompt": prompt,
+            "stream": False
+        }
+    )
 
-# ---------------------------
-# Q&A Prompt
-# ---------------------------
-qa_prompt = ChatPromptTemplate.from_template(
-    """
+    return response.json()["response"]
+
+
+def qa_chain(context: str, question: str):
+    prompt = f"""
 Answer the question strictly based only on the given paragraph.
 If answer not present, say "Answer not found in paragraph."
 
@@ -31,16 +30,11 @@ Question:
 
 Answer:
 """
-)
-
-qa_chain = qa_prompt | llm
+    return generate_response(prompt)
 
 
-# ---------------------------
-# Quiz Prompt
-# ---------------------------
-quiz_prompt = ChatPromptTemplate.from_template(
-    """
+def quiz_chain(context: str):
+    prompt = f"""
 Generate 5 quiz questions based only on the paragraph below.
 
 Paragraph:
@@ -53,6 +47,4 @@ Quiz Questions:
 4.
 5.
 """
-)
-
-quiz_chain = quiz_prompt | llm
+    return generate_response(prompt)
