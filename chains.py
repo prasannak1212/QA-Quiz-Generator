@@ -10,15 +10,15 @@ OLLAMA_URL = "http://localhost:11434/api/generate"
 MODEL_NAME = "phi3:mini"
 
 # -----------------------------
-# Embedding Model (local)
+# Embedding Model
 # -----------------------------
 embedder = SentenceTransformer("all-MiniLM-L6-v2")
 
 
 # -----------------------------
-# Utility: Split text into chunks
+# Split text into chunks
 # -----------------------------
-def split_text(text, chunk_size=300):
+def split_text(text, chunk_size=120):
     words = text.split()
     chunks = []
 
@@ -30,36 +30,44 @@ def split_text(text, chunk_size=300):
 
 
 # -----------------------------
-# Build FAISS index
+# Build FAISS index (cosine similarity)
 # -----------------------------
 def build_faiss_index(chunks):
-    embeddings = embedder.encode(chunks)
-    # embeddings = embedder.encode(chunks, normalize_embeddings=True)
+
+    embeddings = embedder.encode(
+        chunks,
+        normalize_embeddings=True
+    )
+
     dimension = embeddings.shape[1]
 
-    index = faiss.IndexFlatL2(dimension)
+    index = faiss.IndexFlatIP(dimension)   # cosine similarity
     index.add(np.array(embeddings).astype("float32"))
 
-    return index, embeddings
+    return index
 
 
 # -----------------------------
 # Retrieve relevant chunks
 # -----------------------------
-def retrieve(query, chunks, index, top_k=2, threshold=0.8):
-    query_embedding = embedder.encode([query])
-    # index = faiss.IndexFlatIP(dimension)
-    distances, indices = index.search(
+def retrieve(query, chunks, index, top_k=2, threshold=0.3):
+
+    query_embedding = embedder.encode(
+        [query],
+        normalize_embeddings=True
+    )
+
+    scores, indices = index.search(
         np.array(query_embedding).astype("float32"),
         top_k
     )
 
     retrieved_chunks = []
 
-    for i, distance in zip(indices[0], distances[0]):
+    for idx, score in zip(indices[0], scores[0]):
 
-        if distance < threshold:   # lower distance = more similar
-            retrieved_chunks.append(chunks[i])
+        if score > threshold:
+            retrieved_chunks.append(chunks[idx])
 
     return retrieved_chunks
 
@@ -68,6 +76,7 @@ def retrieve(query, chunks, index, top_k=2, threshold=0.8):
 # Call Ollama
 # -----------------------------
 def generate_response(prompt):
+
     response = requests.post(
         OLLAMA_URL,
         json={
@@ -81,47 +90,62 @@ def generate_response(prompt):
 
 
 # -----------------------------
-# QA Chain (Now RAG-based)
+# QA Chain (RAG)
 # -----------------------------
 def qa_chain(context: str, question: str):
+
     chunks = split_text(context)
-    index, _ = build_faiss_index(chunks)
+
+    index = build_faiss_index(chunks)
+
     retrieved_chunks = retrieve(question, chunks, index)
+
+    if not retrieved_chunks:
+        return "Answer not found in paragraph."
 
     final_context = "\n\n".join(retrieved_chunks)
 
     prompt = f"""
-Answer the question strictly using the retrieved context below.
-If answer not present, say "Answer not found in paragraph."
+    You are a question answering system.
 
-Retrieved Context:
-{final_context}
+    Rules:
+    - Only answer using the provided context.
+    - Do NOT use outside knowledge.
+    - If the answer is not explicitly stated in the context, reply exactly:
+    "Answer not found in paragraph."
 
-Question:
-{question}
+    Context:
+    {final_context}
 
-Answer:
+    Question:
+    {question}
+
+    Answer:
 """
-    if not retrieved_chunks:
-        return "Answer not found in paragraph."
-    # else:
+
     return generate_response(prompt)
 
 
 # -----------------------------
-# Quiz Chain (Now RAG-based)
+# Quiz Chain (RAG)
 # -----------------------------
 def quiz_chain(context: str):
-    chunks = split_text(context)
-    index, _ = build_faiss_index(chunks)
 
-    # For quiz, retrieve top 3 chunks using a generic query
-    retrieved_chunks = retrieve("Generate quiz from this text", chunks, index, top_k=3)
+    chunks = split_text(context)
+
+    index = build_faiss_index(chunks)
+
+    retrieved_chunks = retrieve(
+        "generate quiz questions",
+        chunks,
+        index,
+        top_k=3
+    )
 
     final_context = "\n\n".join(retrieved_chunks)
 
     prompt = f"""
-Generate 5 quiz questions strictly based on the context below.
+Generate 5 quiz questions strictly based on the context.
 
 Context:
 {final_context}
