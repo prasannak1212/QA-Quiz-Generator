@@ -149,8 +149,10 @@ ROLE: You are a quiz generating system
 
 RULES:
     1. Generate strictly MCQ type questions from the context
-    2. Do not use outside knowledge
-    3. Create only 5 questions each with 4 options strictly
+    2. Do NOT use outside knowledge
+    3. Strictly use the paragraph to generate quiz
+    4. Do NOT Hallucinate, if not sure. reply explicitly: "Unable to create Quiz"
+    5. Create only 5 questions each with 4 options strictly
 
 CONTEXT: {final_context}
 
