@@ -144,18 +144,22 @@ def quiz_chain(context: str):
 
     final_context = "\n\n".join(retrieved_chunks)
 
-    prompt = f"""
-Generate 5 quiz questions strictly based on the context.
+    prompt = f""" 
+ROLE: You are a quiz generating system
 
-Context:
-{final_context}
+RULES:
+    1. Generate strictly MCQ type questions from the context
+    2. Do not use outside knowledge
+    3. Create only 5 questions each with 4 options strictly
 
-Quiz Questions:
+CONTEXT: {final_context}
+
+QUESTIONS:
 1.
 2.
 3.
 4.
 5.
-"""
+    """
 
     return generate_response(prompt)
