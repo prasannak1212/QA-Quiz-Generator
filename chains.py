@@ -41,7 +41,7 @@ def build_faiss_index(chunks):
 
     dimension = embeddings.shape[1]
 
-    index = faiss.IndexFlatIP(dimension)   # cosine similarity
+    index = faiss.IndexFlatIP(dimension)   # cosine similarity. It is vector DB object that can store vectors of dimension
     index.add(np.array(embeddings).astype("float32"))
 
     return index
