@@ -88,6 +88,16 @@ def generate_response(prompt):
 
     return response.json()["response"]
 
+# -----------------------------
+# Validate Paragraph length
+# -----------------------------
+def limit_context(text, max_words=2000):
+    words = text.split()
+
+    if len(words) > max_words:
+        words = words[:max_words]
+
+    return " ".join(words)
 
 # -----------------------------
 # QA Chain (RAG)
@@ -133,28 +143,23 @@ def quiz_chain(context: str):
 
     chunks = split_text(context)
 
-    index = build_faiss_index(chunks)
+    final_context = "\n\n".join(chunks)
 
-    retrieved_chunks = retrieve(
-        "generate quiz questions",
-        chunks,
-        index,
-        top_k=3
-    )
+    # Prevent context overflow
+    final_context = limit_context(final_context)
 
-    final_context = "\n\n".join(retrieved_chunks)
-
-    prompt = f""" 
+    prompt = f"""
 ROLE: You are a quiz generating system
 
 RULES:
-    1. Generate strictly MCQ type questions from the context
-    2. Do NOT use outside knowledge
-    3. Strictly use the paragraph to generate quiz
-    4. Do NOT Hallucinate, if not sure. reply explicitly: "Unable to create Quiz"
-    5. Create only 5 questions each with 4 options strictly
+1. Generate strictly MCQ type questions from the context
+2. Do NOT use outside knowledge
+3. Strictly use the paragraph to generate quiz
+4. Do NOT hallucinate, if not sure reply: "Unable to create Quiz"
+5. Create exactly 5 questions each with 4 options
 
-CONTEXT: {final_context}
+CONTEXT:
+{final_context}
 
 QUESTIONS:
 1.
@@ -162,6 +167,6 @@ QUESTIONS:
 3.
 4.
 5.
-    """
+"""
 
     return generate_response(prompt)
